@@ -1,0 +1,99 @@
+name: 'Install Erlang/OTP on macOS'
+description: 'Install Erlang/OTP on macOS.'
+branding:
+  icon: "terminal"
+  color: "blue"
+inputs:
+  otp-version:
+    description: 'The version of Erlang/OTP to install.'
+    type: string
+    required: true
+    default: "27.3.4.2-1"
+  install-elixir:
+    description: 'Whether to install Elixir as well.'
+    type: boolean
+    required: false
+    default: false
+  elixir-version:
+    description: 'The version of Elixir to install.'
+    type: string
+    required: false
+    default: "1.18.3"
+  rebar3-version:
+    description: 'The version of Rebar3 to install.'
+    type: string
+    required: false
+    default: "3.25.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install dependencies
+      id: deps
+      shell: bash
+      run: |
+        brew update
+        brew install curl zip unzip unixodbc coreutils freetds autoconf automake openssl kerl
+        brew upgrade curl zip unzip unixodbc coreutils freetds autoconf automake openssl kerl
+        # detect macOS version to be used in cache action
+        VERSION="$(sw_vers | grep 'ProductVersion' | cut -d':' -f 2 | cut -d'.' -f1 | tr -d ' \t')"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+    - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      id: cache
+      with:
+        path: ~/.kerl/installations/${{ inputs.otp-version }}
+        key: otp-install-${{ inputs.otp-version }}-${{ steps.deps.outputs.version }}-static-ssl-disable-jit-20250730
+
+    - name: Build erlang
+      id: build-erlang
+      if: steps.cache.outputs.cache-hit != 'true'
+      env:
+        OTP_VERSION: "${{ inputs.otp-version }}"
+      shell: bash
+      run: |
+        export LDFLAGS="-L$(brew --prefix unixodbc)/lib"
+        export CC="/usr/bin/gcc -I$(brew --prefix unixodbc)/include"
+        export KERL_CONFIGURE_OPTIONS="--disable-jit --disable-dynamic-ssl-lib --with-ssl=$(brew --prefix openssl) --with-odbc=$(brew --prefix unixodbc)"
+        export MAKEFLAGS=-j$(nproc)
+        kerl build git https://github.com/emqx/otp.git OTP-$OTP_VERSION $OTP_VERSION
+        kerl install $OTP_VERSION ~/.kerl/installations/$OTP_VERSION
+        unset LDFLAGS
+        unset CC
+
+    - name: Install elixir
+      id: install-elixir
+      if: inputs.install-elixir == 'true'
+      env:
+        OTP_VERSION: "${{ inputs.otp-version }}"
+        ELIXIR_VERSION: "${{ inputs.elixir-version }}"
+      shell: bash
+      run: |
+        mkdir -p ~/.elixir-install
+        cd ~/.elixir-install
+        otp_major=$(echo $OTP_VERSION | sed -nre 's/([0-9]+).*/\1/p')
+        elixir_zip="elixir-otp-${otp_major}.zip"
+        url="https://github.com/elixir-lang/elixir/releases/download/v${ELIXIR_VERSION}/${elixir_zip}"
+        curl -fsSLO "$url"
+        unzip "${elixir_zip}"
+
+    - name: Install rebar3
+      env:
+        OTP_VERSION: "${{ inputs.otp-version }}"
+        REBAR3_VERSION: "${{ inputs.rebar3-version }}"
+      shell: bash
+      run: |
+        wget "https://github.com/erlang/rebar3/releases/download/${REBAR3_VERSION}/rebar3" && chmod +x rebar3
+        source $HOME/.kerl/installations/$OTP_VERSION/activate
+        ./rebar3 local install
+
+    - name: Add to path
+      shell: bash
+      env:
+        OTP_VERSION: "${{ inputs.otp-version }}"
+      run: |
+        echo "$HOME/.kerl/installations/$OTP_VERSION/bin" >> $GITHUB_PATH
+        if [ -d "$HOME/.elixir-install/bin" ]; then
+          echo "$HOME/.elixir-install/bin" >> $GITHUB_PATH
+        fi
+        echo "$HOME/.kerl/installations/$OTP_VERSION/.cache/rebar3/bin" >> $GITHUB_PATH
