@@ -19,11 +19,16 @@ inputs:
     type: string
     required: false
     default: "1.18.3"
+  rebar3-base-url:
+    description: 'The base URL to download Rebar3 from.'
+    type: string
+    required: false
+    default: 'https://github.com/emqx/rebar3'
   rebar3-version:
     description: 'The version of Rebar3 to install.'
     type: string
     required: false
-    default: "3.25.0"
+    default: "3.25.1-emqx-1"
 
 runs:
   using: "composite"
@@ -80,10 +85,11 @@ runs:
     - name: Install rebar3
       env:
         OTP_VERSION: "${{ inputs.otp-version }}"
+        REBAR3_BASE_URL: "${{ inputs.rebar3-base-url }}"
         REBAR3_VERSION: "${{ inputs.rebar3-version }}"
       shell: bash
       run: |
-        wget "https://github.com/erlang/rebar3/releases/download/${REBAR3_VERSION}/rebar3" && chmod +x rebar3
+        wget "${REBAR3_BASE_URL}/releases/download/${REBAR3_VERSION}/rebar3" && chmod +x rebar3
         source $HOME/.kerl/installations/$OTP_VERSION/activate
         ./rebar3 local install
 
