@@ -19,6 +19,11 @@ inputs:
     type: string
     required: false
     default: "1.18.3"
+  install-rebar3:
+    description: 'Whether to install Rebar3 as well.'
+    type: boolean
+    required: false
+    default: true
   rebar3-base-url:
     description: 'The base URL to download Rebar3 from.'
     type: string
@@ -83,6 +88,7 @@ runs:
         unzip "${elixir_zip}"
 
     - name: Install rebar3
+      if: inputs.install-rebar3 == 'true'
       env:
         OTP_VERSION: "${{ inputs.otp-version }}"
         REBAR3_BASE_URL: "${{ inputs.rebar3-base-url }}"
@@ -102,4 +108,6 @@ runs:
         if [ -d "$HOME/.elixir-install/bin" ]; then
           echo "$HOME/.elixir-install/bin" >> $GITHUB_PATH
         fi
-        echo "$HOME/.kerl/installations/$OTP_VERSION/.cache/rebar3/bin" >> $GITHUB_PATH
+        if [ -d "$HOME/.cache/rebar3/bin" ]; then
+          echo "$HOME/.cache/rebar3/bin" >> $GITHUB_PATH
+        fi
