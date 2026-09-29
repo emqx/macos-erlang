@@ -41,8 +41,25 @@ runs:
     - name: Install dependencies
       id: deps
       shell: bash
+      env:
+        # `brew install` reads formulae from the API, so the explicit update only
+        # costs time. Cleanup is pointless on a throw-away runner.
+        HOMEBREW_NO_AUTO_UPDATE: 1
+        HOMEBREW_NO_INSTALL_CLEANUP: 1
       run: |
-        brew update
+        # The macos-14 image still has openssl@1.1 installed and linked, so it owns
+        # /opt/homebrew/bin/openssl. Homebrew then cannot link the newer openssl that
+        # curl pulls in, and the whole step fails:
+        #
+        #   Could not symlink bin/openssl
+        #   Target /opt/homebrew/bin/openssl
+        #   is a symlink belonging to openssl@1.1.
+        #
+        # Unlink it first. It stays installed, so anything referring to it by prefix
+        # keeps working.
+        if brew list --versions openssl@1.1 >/dev/null 2>&1; then
+          brew unlink openssl@1.1
+        fi
         brew install curl zip unzip unixodbc coreutils freetds autoconf automake openssl kerl
         brew upgrade curl zip unzip unixodbc coreutils freetds autoconf automake openssl kerl
         # detect macOS version to be used in cache action
