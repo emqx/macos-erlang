@@ -125,6 +125,10 @@ runs:
         if [ -d "$HOME/.elixir-install/bin" ]; then
           echo "$HOME/.elixir-install/bin" >> $GITHUB_PATH
         fi
-        if [ -d "$HOME/.cache/rebar3/bin" ]; then
-          echo "$HOME/.cache/rebar3/bin" >> $GITHUB_PATH
-        fi
+        # The kerl activate script sets REBAR_CACHE_DIR to the installation, so
+        # `rebar3 local install` writes the run script there.
+        for rebar3_bin in "$HOME/.kerl/installations/$OTP_VERSION/.cache/rebar3/bin" "$HOME/.cache/rebar3/bin"; do
+          if [ -d "$rebar3_bin" ]; then
+            echo "$rebar3_bin" >> $GITHUB_PATH
+          fi
+        done
